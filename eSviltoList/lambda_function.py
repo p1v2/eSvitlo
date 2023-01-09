@@ -3,6 +3,11 @@ import boto3
 dynamodb = boto3.client('dynamodb')
 
 
+def readable_address(item):
+    address = item["address"]["M"]
+    return ', '.join((address["city"]["S"], address["street"]["S"], address["building"]["S"]))
+
+
 def lambda_handler(event, context):
     items = dynamodb.scan(
         TableName='eSvitlo',
@@ -11,7 +16,7 @@ def lambda_handler(event, context):
     response = []
     for item in items:
         address = item["address"]["M"]
-        address_response = ', '.join((address["city"]["S"], address["street"]["S"], address["building"]["S"]))
+        address_response = readable_address(item)
         lat = address["lat"]["N"]
         lng = address["lng"]["N"]
 
