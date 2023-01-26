@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import date
 
 import boto3
 import urllib.request
@@ -29,29 +30,97 @@ def readable_address(item):
     return ', '.join((address["city"]["S"], address["street"]["S"], address["building"]["S"]))
 
 
+def get_schedule(schedule_item) -> [[str, str]]:
+    turn_offs = schedule_item["turn_offs"]["L"]
+
+    schedule = []
+
+    for turn_off in turn_offs:
+        start = turn_off["M"]["start"]["S"]
+        end = turn_off["M"]["end"]["S"]
+
+        schedule.append([start, end])
+
+    return schedule
+
+
+def get_addresses(schedule_item) -> [str]:
+    addresses_items = schedule_item["addresses"]["L"]
+
+    return list(map(lambda item: item["S"], addresses_items))
+
+
+def get_schedule_message(schedule, date_start):
+    message = "Графік вимкнення: "
+
+    item_messages = []
+    for item in schedule:
+        item_messages.append(f"{item[0]}-{item[1]}")
+
+    if str(date.today()) == date_start:
+        date_message = "Діє відсьогодні."
+    else:
+        date_message = "Діє відзавтра."
+
+    return message + ", ".join(item_messages) + ". " + date_message
+
+
+def get_address_item(id):
+    return dynamodb.get_item(
+        TableName='eSvitlo',
+        Key={'id': {'S': id}}
+    )['Item']
+
+
+def status_change_handler(record):
+    id = record['Sns']['Subject']
+
+    item = get_address_item(id)
+
+    status = item['electricity_status']['S']
+    channel_id = int(item['channel_id']['S'])
+
+    address = readable_address(item)
+
+    print(f"Address: {address}")
+    print(f"State: {status}")
+
+    if status == "off":
+        send_telegram_message(channel_id, "Немає світла 🕯")
+    elif status == "on":
+        send_telegram_message(channel_id, "Є світло 💡")
+
+
+def schedule_change_handler(record):
+    id = record['Sns']['Subject']
+
+    schedule_item = dynamodb.get_item(
+        TableName='eSvitloSchedule',
+        Key={'id': {'N': id}}
+    )['Item']
+
+    schedule = get_schedule(schedule_item)
+
+    date_start = schedule_item["date_start"]["S"]
+
+    message = get_schedule_message(schedule, date_start)
+
+    addresses = get_addresses(schedule_item)
+
+    for address in addresses:
+        item = get_address_item(address)
+
+        send_telegram_message(192484569, message)
+
+
 def lambda_handler(event, context):
     for record in event['Records']:
-        id = record['Sns']['Subject']
+        topic = record['Sns']['TopicArn']
 
-        dynamo_response = dynamodb.get_item(
-            TableName='eSvitlo',
-            Key={'id': {'S': id}}
-        )
-
-        item = dynamo_response['Item']
-
-        status = item['electricity_status']['S']
-        channel_id = int(item['channel_id']['S'])
-
-        address = readable_address(item)
-
-        print(f"Address: {address}")
-        print(f"State: {status}")
-
-        if status == "off":
-            send_telegram_message(channel_id, f"Немає світла 🕯")
-        elif status == "on":
-            send_telegram_message(channel_id, f"Є світло 💡")
+        if 'eSvitloScheduleChange' in topic:
+            schedule_change_handler(record)
+        elif 'eSvitlo' in topic:
+            status_change_handler(record)
 
     return {
         'statusCode': 200,
