@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import date
+from urllib.error import HTTPError
 
 import boto3
 import urllib.request
@@ -11,7 +12,7 @@ dynamodb = boto3.client('dynamodb')
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
 
-def send_telegram_message(chat_id: int, message: str):
+def send_telegram_message(chat_id: str, message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
     request = urllib.request.Request(url)
@@ -22,7 +23,13 @@ def send_telegram_message(chat_id: int, message: str):
     })
     jsonBytes = jsonData.encode()
     request.add_header('Content-Length', str(len(jsonBytes)))
-    urllib.request.urlopen(request, jsonBytes)
+    try:
+        urllib.request.urlopen(request, jsonBytes)
+    except HTTPError as error:
+        print(error.reason)
+        print(error)
+        print(error.read())
+        print(error.readlines())
 
 
 def readable_address(item):
@@ -78,7 +85,7 @@ def status_change_handler(record):
     item = get_address_item(id)
 
     status = item['electricity_status']['S']
-    channel_id = int(item['channel_id']['S'])
+    channel_id = item['channel_id']['S']
 
     address = readable_address(item)
 

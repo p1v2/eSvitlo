@@ -22,6 +22,7 @@ def lambda_handler(event, context):
         id = item['id']['S']
         ts = datetime.fromisoformat(item['pong']['S'])
         status = item['electricity_status']['S']
+        disabled = item['disabled']['BOOL']
 
         address = readable_address(item)
 
@@ -30,6 +31,10 @@ def lambda_handler(event, context):
         print(f"Address: {address}")
         print(f"State: {status}")
         print(f"TS: {ts}")
+
+        if disabled:
+            print("Disabled")
+            continue
 
         status_change = False
 
