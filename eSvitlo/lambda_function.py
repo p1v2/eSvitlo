@@ -30,6 +30,9 @@ def lambda_handler(event, context):
         disabled = item['disabled']['BOOL']
         oblast = item['address']['M'].get('oblast', {}).get('S')
 
+        address = readable_address(item)
+        print(f"Address: {address}")
+
         if oblast in air_strikes:
             print("Skip check for electricity status due to air strike")
             continue
@@ -37,11 +40,8 @@ def lambda_handler(event, context):
             print("Skip check for electricity status due to missing oblast")
             continue
 
-        address = readable_address(item)
-
         now = datetime.now()
 
-        print(f"Address: {address}")
         print(f"State: {status}")
         print(f"TS: {ts}")
 
