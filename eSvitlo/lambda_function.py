@@ -4,6 +4,8 @@ from datetime import datetime
 
 import boto3
 
+from air_strike import get_air_strike_oblasts
+
 dynamodb = boto3.client("dynamodb")
 sns = boto3.client("sns")
 
@@ -18,11 +20,22 @@ def lambda_handler(event, context):
         TableName='eSvitlo',
     )['Items']
 
+    air_strikes = get_air_strike_oblasts()
+    print(f"Air strikes: {', '.join(air_strikes)}")
+
     for item in items:
         id = item['id']['S']
         ts = datetime.fromisoformat(item['pong']['S'])
         status = item['electricity_status']['S']
         disabled = item['disabled']['BOOL']
+        oblast = item['address']['M'].get('oblast', {}).get('S')
+
+        if oblast in air_strikes:
+            print("Skip check for electricity status due to air strike")
+            continue
+        if not oblast:
+            print("Skip check for electricity status due to missing oblast")
+            continue
 
         address = readable_address(item)
 
